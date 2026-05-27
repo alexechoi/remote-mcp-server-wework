@@ -22,12 +22,14 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: mcp/go.mod
           cache: true
+          cache-dependency-path: mcp/go.sum
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
           args: release --clean
+          workdir: mcp
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
