@@ -12,7 +12,6 @@ function unauthorized(request: Request) {
     {
       status: 401,
       headers: {
-        "WWW-Authenticate": `Bearer resource_metadata="${appUrl()}/.well-known/oauth-protected-resource"`
         "WWW-Authenticate": `Bearer resource_metadata="${requestOrigin(request)}/.well-known/oauth-protected-resource"`
       }
     }
@@ -35,9 +34,15 @@ export async function POST(request: Request) {
   });
 }
 
-export async function GET() {
-  return new NextResponse("SSE is not used by this serverless transport.", {
-    status: 405,
-    headers: { Allow: "POST" }
+export async function GET(request: Request) {
+  return unauthorized(request);
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      Allow: "GET, POST, OPTIONS"
+    }
   });
 }

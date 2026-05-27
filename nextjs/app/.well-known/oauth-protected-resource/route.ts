@@ -8,3 +8,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   return NextResponse.json(protectedResourceMetadata(requestOrigin(request)));
 }
+
+export async function POST(request: Request) {
+  return GET(request);
+}
