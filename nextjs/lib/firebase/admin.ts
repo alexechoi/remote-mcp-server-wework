@@ -62,8 +62,9 @@ export async function currentUser() {
     if (hasFirebaseServiceAccount()) {
       return await adminAuth().verifySessionCookie(session, true);
     }
-    return await adminAuth().verifyIdToken(session, true);
-  } catch {
+    return await adminAuth().verifyIdToken(session);
+  } catch (error) {
+    console.error("Failed to verify Firebase session", error);
     return null;
   }
 }
