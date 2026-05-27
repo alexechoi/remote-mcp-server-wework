@@ -108,7 +108,7 @@ export function Dashboard({
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <div>
             <p className="text-sm text-neutral-500">Signed in as {user.email}</p>
-            <h1 className="text-2xl font-semibold text-white">WeWork MCP SaaS</h1>
+            <h1 className="text-2xl font-semibold text-white">WeWork MCP</h1>
           </div>
           <button onClick={signOut} className="flex h-10 items-center gap-2 rounded-md border border-neutral-700 px-3 text-sm text-neutral-200 hover:border-neutral-500 hover:bg-neutral-900">
             <LogOut size={16} />
