@@ -4,12 +4,11 @@ import { createHash } from "node:crypto";
 
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 
-import { appUrl } from "@/lib/env";
 import { randomToken, secretHash } from "@/lib/crypto";
 import { db } from "@/lib/firebase/admin";
 
-export function oauthMetadata() {
-  const issuer = appUrl();
+export function oauthMetadata(origin: string) {
+  const issuer = origin.replace(/\/$/, "");
   return {
     issuer,
     authorization_endpoint: `${issuer}/api/oauth/authorize`,
@@ -23,8 +22,8 @@ export function oauthMetadata() {
   };
 }
 
-export function protectedResourceMetadata() {
-  const issuer = appUrl();
+export function protectedResourceMetadata(origin: string) {
+  const issuer = origin.replace(/\/$/, "");
   return {
     resource: `${issuer}/api/mcp`,
     authorization_servers: [issuer],

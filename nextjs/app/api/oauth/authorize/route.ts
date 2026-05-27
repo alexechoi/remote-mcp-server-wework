@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { appUrl } from "@/lib/env";
+import { requestOrigin } from "@/lib/env";
 import { currentUser } from "@/lib/firebase/admin";
 import { issueAuthorizationCode } from "@/lib/oauth";
 
@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   const params = querySchema.parse(Object.fromEntries(url.searchParams));
   const user = await currentUser();
   if (!user) {
-    const login = new URL("/login", appUrl());
+    const login = new URL("/login", requestOrigin(request));
     login.searchParams.set("next", `${url.pathname}${url.search}`);
     return NextResponse.redirect(login);
   }
