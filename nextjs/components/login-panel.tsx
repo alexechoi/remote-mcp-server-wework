@@ -24,9 +24,11 @@ export function LoginPanel() {
         body: JSON.stringify({ idToken })
       });
       if (!response.ok) {
-        throw new Error("Could not create a session.");
+        const text = await response.text();
+        const data = text ? JSON.parse(text) : {};
+        throw new Error(data.error ?? "Could not create a session.");
       }
-      window.location.href = searchParams.get("next") || "/";
+      window.location.href = searchParams.get("next") || "/dashboard";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed.");
     } finally {

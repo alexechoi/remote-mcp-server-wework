@@ -1,4 +1,4 @@
-# WeWork MCP SaaS
+# WeWork MCP
 
 Vercel project root: `nextjs`
 
