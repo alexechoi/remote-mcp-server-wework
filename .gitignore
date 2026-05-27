@@ -14,3 +14,4 @@ nextjs/.next
 nextjs/out
 nextjs/node_modules
 nextjs/.env
+nextjs/tsconfig.tsbuildinfo
