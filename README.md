@@ -1,70 +1,25 @@
-# mcp-server-wework
+# WeWork MCP SaaS
 
-MCP server for WeWork bookings and space search.
+This repository is split into two projects:
 
-Deploy this server directly to MCP Nest:
+- `mcp/` contains the original local WeWork MCP server fork. It still builds and runs as a stdio MCP server.
+- `nextjs/` contains the Vercel-hosted SaaS app for non-technical users and Claude remote connector support.
 
-<a href="https://mcpnest.dev/deploy?server=mcp-server-wework&package-manager=npx&env%5BWEWORK_USERNAME%5D=&env%5BWEWORK_PASSWORD%5D="><img src="https://mcpnest.dev/images/deploy-on-mcpnest.png" width="200" /></a>
+For Vercel, set the project root directory to `nextjs`.
 
-## Install
-
-Run it directly with npx:
-
-```bash
-npx -y mcp-server-wework
-```
-
-Or install via Go:
+## Local MCP
 
 ```bash
-go install github.com/dvcrn/mcp-server-wework/cmd/mcp-server-wework@latest
-```
-
-## Usage with Claude
-
-Add it to your MCP configuration:
-
-```json
-{
-  "mcpServers": {
-    "wework": {
-      "command": "npx",
-      "args": ["-y", "mcp-server-wework"],
-      "env": {
-        "WEWORK_USERNAME": "your-email@example.com",
-        "WEWORK_PASSWORD": "your-password"
-      }
-    }
-  }
-}
-```
-
-## Tools
-
-- `locations` — list WeWork locations in a city
-- `desks` — list available spaces for a date
-- `find_space` — alias for `desks`
-- `bookings` — list upcoming or past bookings
-- `book` — create bookings for one or more dates
-- `quote` — get booking quotes without booking
-- `info` — get detailed location information
-- `me` — fetch the current user profile
-- `calendar` — generate an ICS payload from bookings
-- `cancel_booking` — cancel an upcoming booking by booking UUID
-
-## Credentials
-
-The server reads credentials from environment variables:
-
-- `WEWORK_USERNAME`
-- `WEWORK_PASSWORD`
-
-## Local development
-
-```bash
-mise install
+cd mcp
 mise run test
 mise run build
 ./dist/mcp-server-wework
 ```
 
+## SaaS App
+
+```bash
+cd nextjs
+npm install
+npm run dev
+```
