@@ -28,6 +28,62 @@ type OAuthTokenResponse = {
 const auth0Client =
   "eyJuYW1lIjoiQGF1dGgwL2F1dGgwLWFuZ3VsYXIiLCJ2ZXJzaW9uIjoiMS4xMS4xLmN1c3RvbSIsImVudiI6eyJhbmd1bGFyL2NvcmUiOiIxMy4xLjEifX0=";
 
+class AuthSession {
+  private readonly cookies = new Map<string, string>();
+
+  constructor(private readonly domain: string) {
+    this.cookies.set("auth0.zE51Ep7FttlmtQV6ZEGyJKsY2jD1EtAu.is.authenticated", "true");
+    this.cookies.set("_legacy_auth0.zE51Ep7FttlmtQV6ZEGyJKsY2jD1EtAu.is.authenticated", "true");
+  }
+
+  headers(extra?: HeadersInit): HeadersInit {
+    const cookie = [...this.cookies.entries()].map(([name, value]) => `${name}=${value}`).join("; ");
+    return {
+      ...baseHeaders(),
+      ...(cookie ? { Cookie: cookie } : {}),
+      ...extra
+    };
+  }
+
+  async fetch(url: string | URL, init: RequestInit = {}) {
+    const response = await fetch(url, {
+      ...init,
+      headers: this.headers(init.headers),
+      cache: "no-store",
+      redirect: init.redirect ?? "manual"
+    });
+    this.storeCookies(response);
+    return response;
+  }
+
+  resolve(location: string, base?: string | URL) {
+    return new URL(location, base ?? `https://${this.domain}`);
+  }
+
+  setCookie(name: string, value: string) {
+    this.cookies.set(name, value);
+  }
+
+  private storeCookies(response: Response) {
+    const headers = response.headers as Headers & { getSetCookie?: () => string[] };
+    const setCookies = headers.getSetCookie?.() ?? splitSetCookie(response.headers.get("set-cookie"));
+    for (const item of setCookies) {
+      const pair = item.split(";")[0];
+      const idx = pair.indexOf("=");
+      if (idx > 0) {
+        this.cookies.set(pair.slice(0, idx), pair.slice(idx + 1));
+      }
+    }
+  }
+}
+
+function splitSetCookie(header: string | null) {
+  if (!header) {
+    return [];
+  }
+  return header.split(/,(?=\s*[^;,]+=)/g).map((value) => value.trim());
+}
+
 function baseHeaders(token?: string): HeadersInit {
   const headers: Record<string, string> = {
     Accept: "application/json, text/plain, */*",
@@ -51,16 +107,18 @@ function baseHeaders(token?: string): HeadersInit {
   return headers;
 }
 
-async function jsonFetch<T>(url: string, init: RequestInit = {}) {
-  const response = await fetch(url, {
-    ...init,
-    headers: {
-      ...baseHeaders(),
-      ...init.headers
-    },
-    cache: "no-store",
-    redirect: init.redirect ?? "follow"
-  });
+async function jsonFetch<T>(url: string, init: RequestInit = {}, session?: AuthSession) {
+  const response = session
+    ? await session.fetch(url, init)
+    : await fetch(url, {
+        ...init,
+        headers: {
+          ...baseHeaders(),
+          ...init.headers
+        },
+        cache: "no-store",
+        redirect: init.redirect ?? "follow"
+      });
   const text = await response.text();
   const data = text ? (JSON.parse(text) as T) : ({} as T);
   if (!response.ok) {
@@ -92,15 +150,15 @@ function extractUuidFromJwt(token: string) {
   }
 }
 
-async function getAuth0Config() {
+async function getAuth0Config(session?: AuthSession) {
   const params = new URLSearchParams({
     companyId: "00000000-0000-0000-0000-000000000000",
     domain: "members.wework.com"
   });
-  return jsonFetch<Auth0Config>(`https://members.wework.com/workplaceone/api/auth0/config?${params}`);
+  return jsonFetch<Auth0Config>(`https://members.wework.com/workplaceone/api/auth0/config?${params}`, {}, session);
 }
 
-async function authenticateWithPassword(config: Auth0Config, username: string, password: string) {
+async function authenticateWithPassword(config: Auth0Config, username: string, password: string, session: AuthSession) {
   const response = await jsonFetch<{ login_ticket?: string; error?: string; error_description?: string }>(
     `https://${config.domain}/co/authenticate`,
     {
@@ -116,7 +174,8 @@ async function authenticateWithPassword(config: Auth0Config, username: string, p
         realm: "id-wework",
         credential_type: "http://auth0.com/oauth/grant-type/password-realm"
       })
-    }
+    },
+    session
   );
   if (!response.login_ticket) {
     throw new Error(response.error_description || response.error || "WeWork authentication did not return a login ticket");
@@ -124,9 +183,28 @@ async function authenticateWithPassword(config: Auth0Config, username: string, p
   return response.login_ticket;
 }
 
-async function exchangeTicket(config: Auth0Config, loginTicket: string, verifier: string) {
+async function exchangeTicket(
+  config: Auth0Config,
+  loginTicket: string,
+  verifier: string,
+  session: AuthSession,
+  credentials: { username: string; password: string }
+) {
   const state = randomBase64Url(16);
   const nonce = randomBase64Url(16);
+  const transaction = encodeURIComponent(
+    JSON.stringify({
+      nonce,
+      code_verifier: verifier,
+      scope: "openid profile email offline_access",
+      audience: config.audience,
+      redirect_uri: config.redirect_uri,
+      state
+    })
+  );
+  session.setCookie(`_legacy_a0.spajs.txs.${config.client_id}`, transaction);
+  session.setCookie(`a0.spajs.txs.${config.client_id}`, transaction);
+
   const authorize = new URL(`https://${config.domain}/authorize`);
   authorize.search = new URLSearchParams({
     redirect_uri: config.redirect_uri,
@@ -143,35 +221,127 @@ async function exchangeTicket(config: Auth0Config, loginTicket: string, verifier
     login_ticket: loginTicket
   }).toString();
 
-  const response = await fetch(authorize, {
-    headers: baseHeaders(),
-    redirect: "manual",
-    cache: "no-store"
-  });
-
-  const location = response.headers.get("location") || response.url;
-  const parsed = new URL(location, `https://${config.domain}`);
-  const code = parsed.searchParams.get("code");
-  if (!code) {
-    throw new Error(`WeWork authorization did not return a code (${response.status})`);
+  let currentUrl: URL = authorize;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const response = await session.fetch(currentUrl, { redirect: "manual" });
+    const location = response.headers.get("location");
+    const candidate = location ? session.resolve(location, currentUrl) : new URL(response.url || currentUrl);
+    const code = candidate.searchParams.get("code");
+    if (code) {
+      if (candidate.searchParams.get("state") !== state) {
+        throw new Error("WeWork authorization state mismatch");
+      }
+      return jsonFetch<OAuthTokenResponse>(
+        `https://${config.domain}/oauth/token`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            client_id: config.client_id,
+            code_verifier: verifier,
+            grant_type: "authorization_code",
+            code,
+            redirect_uri: config.redirect_uri
+          })
+        },
+        session
+      );
+    }
+    if (response.status >= 300 && response.status < 400 && location) {
+      currentUrl = candidate;
+      continue;
+    }
+    if (response.status === 200) {
+      const body = await response.text();
+      const next = await submitIntermediateForm(body, currentUrl, session, credentials);
+      if (next) {
+        const nextLocation = next.headers.get("location");
+        if (nextLocation) {
+          currentUrl = session.resolve(nextLocation, currentUrl);
+          continue;
+        }
+        currentUrl = new URL(next.url || currentUrl);
+        continue;
+      }
+      throw new Error(`WeWork authorization did not return a code (${response.status}): ${body.slice(0, 300)}`);
+    }
+    const body = await response.text();
+    throw new Error(`WeWork authorization did not return a code (${response.status}): ${body.slice(0, 300)}`);
   }
-  if (parsed.searchParams.get("state") !== state) {
-    throw new Error("WeWork authorization state mismatch");
-  }
-
-  return jsonFetch<OAuthTokenResponse>(`https://${config.domain}/oauth/token`, {
-    method: "POST",
-    body: JSON.stringify({
-      client_id: config.client_id,
-      code_verifier: verifier,
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: config.redirect_uri
-    })
-  });
+  throw new Error("WeWork authorization exceeded redirect limit");
 }
 
-async function loginToWeWork(config: Auth0Config, tokens: OAuthTokenResponse) {
+async function submitIntermediateForm(
+  html: string,
+  baseUrl: URL,
+  session: AuthSession,
+  credentials: { username: string; password: string }
+) {
+  const forms = [...html.matchAll(/<form\b[^>]*>[\s\S]*?<\/form>/gi)].map((match) => match[0]);
+  for (const form of forms) {
+    const names = [...form.matchAll(/<input\b[^>]*\bname=(["']?)([^"'\s>]+)\1[^>]*>/gi)].map((match) => match[2]);
+    const has = (name: string) => names.includes(name);
+    if (!has("js-available") && !has("username") && !has("password")) {
+      continue;
+    }
+
+    const attrs = form.match(/<form\b([^>]*)>/i)?.[1] ?? "";
+    const action = attr(attrs, "action") || baseUrl.toString();
+    const method = (attr(attrs, "method") || "POST").toUpperCase();
+    const values = new URLSearchParams();
+
+    for (const input of form.matchAll(/<input\b([^>]*)>/gi)) {
+      const inputAttrs = input[1];
+      const name = attr(inputAttrs, "name");
+      if (!name) {
+        continue;
+      }
+      values.set(name, attr(inputAttrs, "value") || "");
+    }
+
+    if (has("js-available")) {
+      values.set("js-available", "true");
+    }
+    if (has("webauthn-available")) {
+      values.set("webauthn-available", "false");
+    }
+    if (has("webauthn-platform-available")) {
+      values.set("webauthn-platform-available", "false");
+    }
+    if (has("is-brave")) {
+      values.set("is-brave", "false");
+    }
+    if (has("username")) {
+      values.set("username", credentials.username);
+    }
+    if (has("password")) {
+      values.set("password", credentials.password);
+    }
+
+    const target = session.resolve(action, baseUrl);
+    if (method === "GET") {
+      target.search = values.toString();
+      return session.fetch(target, { redirect: "manual", headers: { Referer: baseUrl.toString() } });
+    }
+    return session.fetch(target, {
+      method: "POST",
+      redirect: "manual",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: baseUrl.toString()
+      },
+      body: values.toString()
+    });
+  }
+  return null;
+}
+
+function attr(source: string, name: string) {
+  const pattern = new RegExp(`\\b${name}=("([^"]*)"|'([^']*)'|([^\\s>]+))`, "i");
+  const match = source.match(pattern);
+  return match?.[2] ?? match?.[3] ?? match?.[4] ?? "";
+}
+
+async function loginToWeWork(config: Auth0Config, tokens: OAuthTokenResponse, session: AuthSession) {
   return jsonFetch<WeWorkTokenLogin>("https://members.wework.com/workplaceone/api/auth0/login-by-auth0-token", {
     method: "POST",
     body: JSON.stringify({
@@ -184,15 +354,16 @@ async function loginToWeWork(config: Auth0Config, tokens: OAuthTokenResponse) {
       client_id: config.client_id,
       audience: config.audience
     })
-  });
+  }, session);
 }
 
 export async function authenticateWeWork(username: string, password: string) {
-  const config = await getAuth0Config();
+  const session = new AuthSession("members.wework.com");
+  const config = await getAuth0Config(session);
   const verifier = randomBase64Url(32);
-  const loginTicket = await authenticateWithPassword(config, username, password);
-  const tokens = await exchangeTicket(config, loginTicket, verifier);
-  const login = await loginToWeWork(config, tokens);
+  const loginTicket = await authenticateWithPassword(config, username, password, session);
+  const tokens = await exchangeTicket(config, loginTicket, verifier, session, { username, password });
+  const login = await loginToWeWork(config, tokens, session);
   const token = login.a0token || login.accessToken || login.token;
   if (!token) {
     throw new Error("WeWork login did not return an API token");

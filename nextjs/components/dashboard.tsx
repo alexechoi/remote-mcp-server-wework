@@ -58,7 +58,8 @@ export function Dashboard({
     setTesting(true);
     setNotice("");
     const response = await fetch("/api/wework/test", { method: "POST" });
-    const data = await response.json();
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : {};
     setTesting(false);
     setNotice(response.ok ? "Connection test passed." : data.error ?? "Connection test failed.");
   }
