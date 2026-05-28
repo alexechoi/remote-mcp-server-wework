@@ -463,7 +463,9 @@ export class WeWorkClient {
         ...bookingPayload(date, space),
         ApplicationType: "WorkplaceOne",
         PlatformType: "iOS_APP",
+        PlatFormTypeEnum: 1,
         CreditRatio: quote?.grandTotal?.creditRatio ?? quote?.GrandTotal?.CreditRatio ?? 1,
+        CreditCharged: 0,
         SpaceID: bookingSpaceId(space)
       })
     });
@@ -482,14 +484,84 @@ export class WeWorkClient {
 }
 
 function bookingTimes(date: string, space: any) {
-  const open = typeof space?.openTime === "string" && space.openTime.length >= 5 ? space.openTime.slice(0, 5) : "08:30";
-  const close = typeof space?.closeTime === "string" && space.closeTime.length >= 5 ? space.closeTime.slice(0, 5) : "20:00";
+  const location = space?.location ?? {};
+  const timezone = typeof location?.timeZone === "string" && location.timeZone ? location.timeZone : "UTC";
+  let open = timeString(space?.openTime, "08:30");
+  let close = timeString(space?.closeTime, "20:00");
+  const operatingHours = operatingHoursForDate(date, space?.operatingHours);
+
+  if (operatingHours && !operatingHours.isClosed) {
+    open = timeString(operatingHours.open, open);
+    close = timeString(operatingHours.close, close);
+  }
+
+  let startTime = zonedTimeToUtcIso(date, open, timezone);
+  let endTime = zonedTimeToUtcIso(date, close, timezone);
+  if (!startTime || !endTime || Date.parse(endTime) <= Date.parse(startTime)) {
+    open = "06:00";
+    close = "23:59";
+    startTime = zonedTimeToUtcIso(date, open, timezone);
+    endTime = zonedTimeToUtcIso(date, close, timezone);
+  }
+
   return {
     open,
     close,
-    startTime: `${date}T${open}:00Z`,
-    endTime: `${date}T${close}:00Z`
+    startTime,
+    endTime
   };
+}
+
+function timeString(value: unknown, fallback: string) {
+  return typeof value === "string" && value.length >= 5 ? value.slice(0, 5) : fallback;
+}
+
+function operatingHoursForDate(date: string, operatingHours: any) {
+  if (!Array.isArray(operatingHours)) {
+    return undefined;
+  }
+  const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+  const dayName = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"][weekday];
+  const isoWeekday = weekday === 0 ? 7 : weekday;
+  return operatingHours.find((item) => {
+    const itemDay = typeof item?.day === "string" ? item.day.toLowerCase() : "";
+    return itemDay === dayName || item?.dayOfWeek === weekday || item?.dayOfWeek === isoWeekday;
+  });
+}
+
+function zonedTimeToUtcIso(date: string, time: string, timeZone: string) {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  if (![year, month, day, hour, minute].every(Number.isFinite)) {
+    return "";
+  }
+  const utcGuess = Date.UTC(year, month - 1, day, hour, minute, 0);
+  const offset = timeZoneOffsetMs(new Date(utcGuess), timeZone);
+  return new Date(utcGuess - offset).toISOString().replace(".000Z", "Z");
+}
+
+function timeZoneOffsetMs(date: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, part.value]));
+  return (
+    Date.UTC(
+      Number(values.year),
+      Number(values.month) - 1,
+      Number(values.day),
+      Number(values.hour),
+      Number(values.minute),
+      Number(values.second)
+    ) - date.getTime()
+  );
 }
 
 function bookingSpaceId(space: any) {
@@ -512,6 +584,7 @@ function bookingPayload(date: string, space: any) {
   const location = space?.location ?? {};
   return {
     SpaceType: 4,
+    SpaceTypeID: 0,
     ReservationID: "",
     TriggerCalendarEvent: true,
     Notes: null,
