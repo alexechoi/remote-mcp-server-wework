@@ -179,24 +179,91 @@ export async function callWeWorkTool(uid: string, name: string, args: unknown) {
 function cancelRequestFromBooking(booking: any) {
   const reservable = booking?.reservable ?? {};
   const location = reservable?.location ?? {};
-  const bookingId = booking?.isFromKube && booking?.kubeBookingExternalReference ? booking.kubeBookingExternalReference : booking?.uuid;
+  const bookingId = booking?.uuid;
+  const bookingType = reservable?.__typename === "ConferenceRoom" ? 0 : reservable?.__typename === "PrivateOffice" ? 2 : 4;
+  const bookingLocationType = location?.sourceType || (reservable?.__typename === "SharedWorkspace" ? 2 : 0);
+  const startTime = formatCancelDateTime(booking?.startsAt);
+  const endTime = formatCancelDateTime(booking?.endsAt);
   return {
     bookingId,
-    bookingLocationType: location?.sourceType ?? 0,
-    reservableId: reservable?.uuid,
-    startTime: booking?.startsAt,
-    endTime: booking?.endsAt,
-    creditsUsed: booking?.creditOrder?.price ?? "",
+    bookingLocationType,
+    creditsUsed: numericCredits(booking?.creditOrder?.price) ?? 0,
+    startTime,
+    endTime,
     locationId: location?.uuid,
+    reservableId: reservable?.uuid,
+    isBookingApprovalOn: Boolean(booking?.IsBookingApprovalOn ?? booking?.isBookingApprovalOn),
+    bookingType,
+    spaceId: reservable?.cwmSpaceId ? String(reservable.cwmSpaceId) : reservable?.uuid,
+    cancellationNote: "",
     mailParams: {
-      workspaceType: reservable?.__typename,
-      dayFormatted: booking?.startsAt,
-      startTimeFormatted: booking?.startsAt,
-      endTimeFormatted: booking?.endsAt,
+      workspaceType: cancelWorkspaceType(reservable?.__typename),
+      dayFormatted: formatCancelDay(booking?.startsAt),
+      startTimeFormatted: startTime,
+      endTimeFormatted: endTime,
       floorAddress: "",
-      locationAddress: `${location?.name ?? ""} ${location?.address?.line1 ?? ""}`.trim()
+      locationAddress: location?.address?.line1 ?? "",
+      locationCountry: location?.address?.country ?? ""
     },
-    bookingType: reservable?.__typename === "ConferenceRoom" ? 0 : reservable?.__typename === "PrivateOffice" ? 2 : 4,
-    reservationId: booking?.uuid
+    reservationId: booking?.kubeBookingExternalReference || booking?.uuid
   };
+}
+
+function numericCredits(value: unknown) {
+  if (typeof value === "number") {
+    return value;
+  }
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+  return undefined;
+}
+
+function formatCancelDateTime(value: unknown) {
+  if (typeof value !== "string" || value.length < 19) {
+    return "";
+  }
+  return value.slice(0, 19) + ".000";
+}
+
+function formatCancelDay(value: unknown) {
+  if (typeof value !== "string") {
+    return "";
+  }
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+  const day = date.getDate();
+  return `${new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(date)}${ordinalSuffix(day)}`;
+}
+
+function ordinalSuffix(day: number) {
+  if (day % 100 >= 11 && day % 100 <= 13) {
+    return "th";
+  }
+  switch (day % 10) {
+    case 1:
+      return "st";
+    case 2:
+      return "nd";
+    case 3:
+      return "rd";
+    default:
+      return "th";
+  }
+}
+
+function cancelWorkspaceType(typeName: unknown) {
+  switch (typeName) {
+    case "ConferenceRoom":
+      return 0;
+    case "PrivateOffice":
+      return 2;
+    case "SharedWorkspace":
+      return 1;
+    default:
+      return typeName;
+  }
 }

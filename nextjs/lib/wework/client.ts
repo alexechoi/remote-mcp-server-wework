@@ -471,7 +471,7 @@ export class WeWorkClient {
     });
   }
 
-  cancelBooking(request: any, isOnDemand = false, platformType = 2) {
+  cancelBooking(request: any, isOnDemand = false, platformType = 1) {
     const params = new URLSearchParams({
       isOnDemand: String(isOnDemand),
       platFormType: String(platformType)
