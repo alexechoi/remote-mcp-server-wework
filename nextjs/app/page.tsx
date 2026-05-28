@@ -1,11 +1,14 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
-const fontClass = "[font-family:Apercu,'Apercu Pro','Helvetica Neue',Arial,sans-serif]";
+const fontClass =
+  "[font-family:Apercu,'Apercu Pro','Helvetica Neue',Arial,sans-serif]";
 
 export default function LandingPage() {
   return (
-    <main className={`relative min-h-screen overflow-hidden bg-black text-white ${fontClass}`}>
+    <main
+      className={`relative min-h-screen overflow-hidden bg-black text-white ${fontClass}`}
+    >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_34%,rgba(155,183,212,0.16),transparent_32%),linear-gradient(to_bottom,rgba(255,255,255,0.05),transparent_32%)]" />
       <div className="pointer-events-none absolute left-1/2 top-[26%] h-px w-[58vw] -translate-x-1/2 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
 
@@ -20,14 +23,17 @@ export default function LandingPage() {
           <Link href="/terms" className="hover:text-white">
             Terms
           </Link>
-          <Link href="/login" className="rounded-md bg-white px-3 py-2 font-semibold text-black hover:bg-neutral-200">
+          <Link
+            href="/login"
+            className="rounded-md bg-white px-3 py-2 font-semibold text-black hover:bg-neutral-200"
+          >
             Sign in
           </Link>
         </nav>
       </header>
 
-      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-76px)] max-w-4xl flex-col items-center justify-center px-6 pb-8 pt-2 text-center">
-        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-neutral-300 shadow-2xl shadow-black/40">
+      <section className="relative z-10 mx-auto flex min-h-[calc(100vh-76px)] max-w-4xl flex-col items-center justify-center px-6 pb-4 text-center">
+        <div className="mb-20 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-neutral-300 shadow-2xl shadow-black/40">
           <span className="size-1.5 animate-pulse rounded-full bg-[#9bb7d4]" />
           Remote connector for Claude
         </div>
@@ -37,15 +43,25 @@ export default function LandingPage() {
         </h1>
 
         <p className="mt-5 max-w-xl text-pretty text-base leading-7 text-neutral-400 md:text-lg">
-          Connect your WeWork account once. Ask Claude for locations, availability, and bookings through a private MCP endpoint.
+          Connect your WeWork account once. Ask Claude for locations,
+          availability, and bookings through a private MCP endpoint.
         </p>
 
         <div className="mt-7 flex flex-wrap justify-center gap-3">
-          <Link href="/login" className="group flex h-11 items-center gap-2 rounded-md bg-white px-5 text-sm font-semibold text-black hover:bg-neutral-200">
+          <Link
+            href="/login"
+            className="group flex h-11 items-center gap-2 rounded-md bg-white px-5 text-sm font-semibold text-black hover:bg-neutral-200"
+          >
             Get started
-            <ArrowRight className="transition group-hover:translate-x-0.5" size={17} />
+            <ArrowRight
+              className="transition group-hover:translate-x-0.5"
+              size={17}
+            />
           </Link>
-          <Link href="/dashboard" className="flex h-11 items-center rounded-md border border-white/10 bg-white/[0.03] px-5 text-sm text-neutral-200 hover:border-white/25 hover:bg-white/[0.06]">
+          <Link
+            href="/dashboard"
+            className="flex h-11 items-center rounded-md border border-white/10 bg-white/[0.03] px-5 text-sm text-neutral-200 hover:border-white/25 hover:bg-white/[0.06]"
+          >
             Open app
           </Link>
         </div>
