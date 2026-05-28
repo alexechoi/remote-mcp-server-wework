@@ -12,7 +12,7 @@ function unauthorized(request: Request) {
     {
       status: 401,
       headers: {
-        "WWW-Authenticate": `Bearer resource_metadata="${requestOrigin(request)}/.well-known/oauth-protected-resource"`
+        "WWW-Authenticate": `Bearer resource_metadata="${requestOrigin(request)}/.well-known/oauth-protected-resource", scope="wework:mcp"`
       }
     }
   );
