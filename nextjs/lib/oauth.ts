@@ -18,6 +18,7 @@ export function oauthMetadata(origin: string) {
     response_types_supported: ["code"],
     grant_types_supported: ["authorization_code", "refresh_token"],
     code_challenge_methods_supported: ["S256"],
+    scopes_supported: ["wework:mcp"],
     token_endpoint_auth_methods_supported: ["none", "client_secret_post"]
   };
 }
@@ -34,20 +35,42 @@ export function protectedResourceMetadata(origin: string) {
 
 export async function registerClient(input: any) {
   const clientId = randomToken(24);
-  const clientSecret = randomToken(32);
+  const requestedAuthMethod = input.token_endpoint_auth_method === "client_secret_post" ? "client_secret_post" : "none";
+  const clientSecret = requestedAuthMethod === "client_secret_post" ? randomToken(32) : "";
+  const redirectUris = Array.isArray(input.redirect_uris) ? input.redirect_uris : [];
+  const grantTypes = Array.isArray(input.grant_types) ? input.grant_types : ["authorization_code", "refresh_token"];
+  const responseTypes = Array.isArray(input.response_types) ? input.response_types : ["code"];
+  const scope = typeof input.scope === "string" ? input.scope : "wework:mcp";
+
   await db().collection("oauthClients").doc(clientId).set({
     clientId,
-    clientSecretHash: secretHash(clientSecret),
-    redirectUris: input.redirect_uris ?? [],
+    clientSecretHash: clientSecret ? secretHash(clientSecret) : null,
+    redirectUris,
     clientName: input.client_name ?? "Claude",
+    grantTypes,
+    responseTypes,
+    scope,
+    tokenEndpointAuthMethod: requestedAuthMethod,
     createdAt: FieldValue.serverTimestamp()
   });
-  return {
+
+  const response: Record<string, unknown> = {
     client_id: clientId,
-    client_secret: clientSecret,
     client_id_issued_at: Math.floor(Date.now() / 1000),
-    token_endpoint_auth_method: "client_secret_post"
+    redirect_uris: redirectUris,
+    grant_types: grantTypes,
+    response_types: responseTypes,
+    client_name: input.client_name ?? "Claude",
+    scope,
+    token_endpoint_auth_method: requestedAuthMethod
   };
+
+  if (clientSecret) {
+    response.client_secret = clientSecret;
+    response.client_secret_expires_at = 0;
+  }
+
+  return response;
 }
 
 function pkceChallenge(verifier: string) {
