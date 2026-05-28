@@ -421,6 +421,22 @@ func (w *WeWork) PostBooking(date time.Time, space *Workspace) (*BookingResponse
 	return w.createBooking(date, space, quote)
 }
 
+func (w *WeWork) PostBookingPayload(payload map[string]any) (*BookingResponse, error) {
+	bookingURL := "https://members.wework.com/workplaceone/api/common-booking/"
+	bookingResp, err := w.doRequest(http.MethodPost, bookingURL, payload)
+	if err != nil {
+		return nil, err
+	}
+	defer bookingResp.Body.Close()
+
+	var result BookingResponse
+	if err := json.NewDecoder(bookingResp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to decode booking response: %v", err)
+	}
+
+	return &result, nil
+}
+
 // GetBookingQuote returns the booking quote for a given workspace and date, without creating a booking.
 func (w *WeWork) GetBookingQuote(date time.Time, space *Workspace) (*QuoteResponse, error) {
 	return w.getBookingQuote(date, space)
