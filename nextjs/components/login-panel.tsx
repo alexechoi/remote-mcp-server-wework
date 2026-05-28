@@ -1,7 +1,7 @@
 "use client";
 
 import { signInWithPopup } from "firebase/auth";
-import { ArrowRight, Building2 } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
@@ -37,25 +37,32 @@ export function LoginPanel() {
   }
 
   return (
-    <section className="w-full max-w-md rounded-lg border border-neutral-800 bg-[#111111] p-8 shadow-2xl shadow-black/40">
-      <div className="mb-8 flex items-center gap-3">
-        <div className="flex size-11 items-center justify-center rounded-md bg-white text-black">
-          <Building2 size={22} />
+    <section className="w-full max-w-md">
+      <div className="mb-8 text-center">
+        <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs text-neutral-300 shadow-2xl shadow-black/40">
+          <span className="size-1.5 animate-pulse rounded-full bg-[#9bb7d4]" />
+          Secure Google sign-in
         </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-normal text-white">WeWork MCP</h1>
-          <p className="text-sm text-neutral-400">Sign in to connect Claude and web chat.</p>
-        </div>
+        <h1 className="text-balance text-4xl font-semibold leading-[1] tracking-normal text-white md:text-5xl">
+          Sign in to WeWork MCP.
+        </h1>
+        <p className="mx-auto mt-4 max-w-sm text-sm leading-6 text-neutral-400">
+          Continue with Google to manage your connector, credentials, and web chat.
+        </p>
       </div>
       <button
         onClick={signIn}
         disabled={loading}
-        className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
+        className="group flex h-11 w-full items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition hover:bg-neutral-200 disabled:opacity-60"
       >
         {loading ? "Signing in..." : "Continue with Google"}
-        <ArrowRight size={17} />
+        <ArrowRight className="transition group-hover:translate-x-0.5" size={17} />
       </button>
-      {error ? <p className="mt-4 text-sm text-red-300">{error}</p> : null}
+      {error ? (
+        <p className="mt-4 rounded-md border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-100">
+          {error}
+        </p>
+      ) : null}
     </section>
   );
 }

@@ -14,12 +14,12 @@ export async function POST(request: Request) {
   if (!user) {
     const login = new URL("/login", request.url);
     login.searchParams.set("next", `/oauth/consent?${new URLSearchParams(params as Record<string, string>).toString()}`);
-    return NextResponse.redirect(login);
+    return NextResponse.redirect(login, 303);
   }
 
   const status = await getWeWorkStatus(user.uid);
   if (!status.connected) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/dashboard", request.url), 303);
   }
 
   const code = await issueAuthorizationCode({
@@ -34,5 +34,5 @@ export async function POST(request: Request) {
   if (params.state) {
     redirect.searchParams.set("state", params.state);
   }
-  return NextResponse.redirect(redirect);
+  return NextResponse.redirect(redirect, 303);
 }
