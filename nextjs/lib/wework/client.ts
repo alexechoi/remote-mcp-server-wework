@@ -25,8 +25,10 @@ type OAuthTokenResponse = {
   token_type: string;
 };
 
-const auth0Client =
-  "eyJuYW1lIjoiQGF1dGgwL2F1dGgwLWFuZ3VsYXIiLCJ2ZXJzaW9uIjoiMS4xMS4xLmN1c3RvbSIsImVudiI6eyJhbmd1bGFyL2NvcmUiOiIxMy4xLjEifX0=";
+// WeWork migrated their Auth0 tenant to idp.wework.com and the members.wework.com
+// SPA to auth0-spa-js 2.1.2. This header must match, decodes to
+// {"name":"auth0-spa-js","version":"2.1.2"}.
+const auth0Client = "eyJuYW1lIjoiYXV0aDAtc3BhLWpzIiwidmVyc2lvbiI6IjIuMS4yIn0=";
 
 class AuthSession {
   private readonly cookies = new Map<string, string>();
@@ -150,12 +152,32 @@ function extractUuidFromJwt(token: string) {
   }
 }
 
-async function getAuth0Config(session?: AuthSession) {
-  const params = new URLSearchParams({
-    companyId: "00000000-0000-0000-0000-000000000000",
-    domain: "members.wework.com"
-  });
-  return jsonFetch<Auth0Config>(`https://members.wework.com/workplaceone/api/auth0/config?${params}`, {}, session);
+type Auth0ConfigV2 = {
+  domain: string;
+  clientId: string;
+  authorizationParams?: {
+    scope?: string;
+    audience?: string;
+    redirect_uri?: string;
+  };
+};
+
+async function getAuth0Config(session?: AuthSession): Promise<Auth0Config> {
+  // WeWork replaced /workplaceone/api/auth0/config (now 404) with a v2 endpoint
+  // that returns the auth0-spa-js config for the idp.wework.com tenant.
+  const params = new URLSearchParams({ domain: "members.wework.com/workplaceone" });
+  const config = await jsonFetch<Auth0ConfigV2>(
+    `https://members.wework.com/workplaceone/api/auth0/v2/config?${params}`,
+    {},
+    session
+  );
+  const authParams = config.authorizationParams ?? {};
+  return {
+    client_id: config.clientId,
+    domain: config.domain,
+    redirect_uri: authParams.redirect_uri ?? "",
+    audience: authParams.audience ?? "wework"
+  };
 }
 
 async function authenticateWithPassword(config: Auth0Config, username: string, password: string, session: AuthSession) {
@@ -341,34 +363,19 @@ function attr(source: string, name: string) {
   return match?.[2] ?? match?.[3] ?? match?.[4] ?? "";
 }
 
-async function loginToWeWork(config: Auth0Config, tokens: OAuthTokenResponse, session: AuthSession) {
-  return jsonFetch<WeWorkTokenLogin>("https://members.wework.com/workplaceone/api/auth0/login-by-auth0-token", {
-    method: "POST",
-    body: JSON.stringify({
-      id_token: tokens.id_token,
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expires_in: tokens.expires_in,
-      scope: tokens.scope,
-      token_type: tokens.token_type,
-      client_id: config.client_id,
-      audience: config.audience
-    })
-  }, session);
-}
-
 export async function authenticateWeWork(username: string, password: string) {
   const session = new AuthSession("members.wework.com");
   const config = await getAuth0Config(session);
   const verifier = randomBase64Url(32);
   const loginTicket = await authenticateWithPassword(config, username, password, session);
   const tokens = await exchangeTicket(config, loginTicket, verifier, session, { username, password });
-  const login = await loginToWeWork(config, tokens, session);
-  const token = login.a0token || login.accessToken || login.token;
+  // With audience "wework" the Auth0 access token is itself the WeWork API bearer,
+  // so the old /workplaceone/api/auth0/login-by-auth0-token exchange is no longer needed.
+  const token = tokens.access_token;
   if (!token) {
-    throw new Error("WeWork login did not return an API token");
+    throw new Error("WeWork login did not return an access token");
   }
-  return { token, login };
+  return { token, login: tokens };
 }
 
 export class WeWorkClient {
